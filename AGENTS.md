@@ -38,3 +38,7 @@ We have imported agent skills in the `.agents/skills/` directory:
 - [flutter-use-http-package](file:///.agents/skills/flutter-use-http-package/SKILL.md)
 
 Refer to these skills in `.agents/skills/` when executing tasks to ensure compliance with Flutter best practices.
+
+## 5. Agent Workflow Rules
+- **No Unconfirmed Commits/Pushes**: Do not execute `git commit` or `git push` commands, or make changes directly to remote repository branches, without explicit user confirmation and approval.
+
