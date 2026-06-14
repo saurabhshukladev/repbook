@@ -56,3 +56,5 @@ secrets.json
 # Local / user-specific configurations
 *.local
 pubspec-local.yaml
+
+mcp_config.json
