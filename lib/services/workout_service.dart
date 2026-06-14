@@ -55,20 +55,20 @@ class GitHubWorkoutService implements WorkoutService {
     });
 
     // Cache unique exercise GIFs
-    final Set<String> processedExercises = {};
+    final Set<String> processedUrls = {};
     for (int i = 0; i < allExercises.length; i++) {
       final exercise = allExercises[i];
-      if (processedExercises.contains(exercise.name)) continue;
+      if (processedUrls.contains(exercise.gifUrl)) continue;
 
       onProgress?.call('Caching GIF (${i + 1}/${allExercises.length}): ${exercise.name}...');
 
       try {
-        final alreadyCached = await cacheService.gifExists(exercise.name);
+        final alreadyCached = await cacheService.gifExists(exercise.gifUrl);
         if (!alreadyCached) {
           final bytes = await gitHubService.downloadBytes(exercise.gifUrl);
-          await cacheService.saveGif(exercise.name, bytes);
+          await cacheService.saveGif(exercise.gifUrl, bytes);
         }
-        processedExercises.add(exercise.name);
+        processedUrls.add(exercise.gifUrl);
       } catch (e) {
         // Log individual errors but continue syncing other exercises
         // so the sync process is robust against single-image failures.
@@ -95,9 +95,9 @@ class GitHubWorkoutService implements WorkoutService {
       final List<Exercise> mappedExercises = [];
 
       for (final exercise in exercises) {
-        final cached = await cacheService.gifExists(exercise.name);
+        final cached = await cacheService.gifExists(exercise.gifUrl);
         if (cached) {
-          final localPath = await cacheService.getGifLocalPath(exercise.name);
+          final localPath = await cacheService.getGifLocalPath(exercise.gifUrl);
           mappedExercises.add(exercise.copyWith(localFilePath: localPath));
         } else {
           mappedExercises.add(exercise);

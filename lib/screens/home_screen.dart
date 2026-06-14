@@ -224,11 +224,12 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/images/logo.png',
-                    height: 100,
-                    color: theme.colorScheme.secondary.withValues(alpha: 0.3),
-                    colorBlendMode: BlendMode.srcIn,
+                  Opacity(
+                    opacity: 0.4,
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      height: 100,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -280,11 +281,12 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/images/logo.png',
-                    height: 80,
-                    color: theme.colorScheme.secondary.withValues(alpha: 0.4),
-                    colorBlendMode: BlendMode.srcIn,
+                  Opacity(
+                    opacity: 0.5,
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      height: 80,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(

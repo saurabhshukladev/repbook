@@ -42,27 +42,27 @@ class CacheService {
     }
   }
 
-  /// Saves downloaded GIF bytes locally and returns the absolute file path.
-  Future<String> saveGif(String exerciseName, List<int> bytes) async {
+  /// Saves downloaded GIF bytes locally using a safe name keyed off the URL.
+  Future<String> saveGif(String gifUrl, List<int> bytes) async {
     final gifsDir = await getGifsDirectory();
-    final safeFilename = _toSafeFilename(exerciseName);
+    final safeFilename = _toSafeGifFilename(gifUrl);
     final file = File('$gifsDir/$safeFilename.gif');
     await file.writeAsBytes(bytes);
     return file.path;
   }
 
-  /// Checks if a GIF for a specific exercise name is already cached locally.
-  Future<bool> gifExists(String exerciseName) async {
+  /// Checks if a GIF for a specific URL is already cached locally.
+  Future<bool> gifExists(String gifUrl) async {
     final gifsDir = await getGifsDirectory();
-    final safeFilename = _toSafeFilename(exerciseName);
+    final safeFilename = _toSafeGifFilename(gifUrl);
     final file = File('$gifsDir/$safeFilename.gif');
     return await file.exists();
   }
 
   /// Gets the local absolute path of a GIF, whether it exists or not.
-  Future<String> getGifLocalPath(String exerciseName) async {
+  Future<String> getGifLocalPath(String gifUrl) async {
     final gifsDir = await getGifsDirectory();
-    final safeFilename = _toSafeFilename(exerciseName);
+    final safeFilename = _toSafeGifFilename(gifUrl);
     return '$gifsDir/$safeFilename.gif';
   }
 
@@ -81,7 +81,16 @@ class CacheService {
     } catch (_) {}
   }
 
-  String _toSafeFilename(String name) {
-    return name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_\-]'), '_');
+  String _toSafeGifFilename(String url) {
+    // Generate a unique, filesystem-safe filename from the URL
+    final uri = Uri.tryParse(url);
+    final path = uri?.path ?? url;
+    final cleanPath = path.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_\-]'), '_');
+    
+    // Extract suffix to keep name length within safety limits
+    if (cleanPath.length > 80) {
+      return cleanPath.substring(cleanPath.length - 80);
+    }
+    return cleanPath;
   }
 }
