@@ -1,101 +1,118 @@
 # RepBook
 
-A Flutter application for managing and displaying exercise routines, built using Material 3 and modern dark aesthetics.
+RepBook is a modern, high-contrast, offline-first Flutter application designed for managing and displaying configurable exercise routines. It features a premium monochromatic dark theme (black, white, and grey) and dynamic swipe-based technique navigation.
 
 ---
 
-## 1. Feature Architecture
+## 1. Architecture & Design
 
-The schedule UI and rendering logic are implemented under a clean, layered architecture:
+The application follows a clean, decoupled, layered architecture to maintain strict Separation of Concerns (SoC).
 
-- **UI Layer (Views)**
-  - [`lib/screens/home_screen.dart`](file:///home/leo/Projects/repbook/lib/screens/home_screen.dart): Renders the main dashboard, BottomNavigationBar tabs (Mon–Sun), error/retry screens, empty day recovery displays, and a custom pulsing skeleton loader.
-  - [`lib/widgets/exercise_card.dart`](file:///home/leo/Projects/repbook/lib/widgets/exercise_card.dart): Custom ListView items showing the exercise name, action indicators, and image loading/error fallback semantics.
-  - [`lib/widgets/exercise_detail.dart`](file:///home/leo/Projects/repbook/lib/widgets/exercise_detail.dart): Full-screen details dialog featuring pinch-to-zoom technique inspection powered by `InteractiveViewer`.
-- **Theme**
-  - [`lib/theme/app_theme.dart`](file:///home/leo/Projects/repbook/lib/theme/app_theme.dart): Defines the design system with custom Material 3 Dark tones (Deep Slate `#121826`, Mint `#10B981`, Indigo `#6366F1`).
-- **State/Logic Layer (ViewModel)**
-  - [`lib/providers/workout_provider.dart`](file:///home/leo/Projects/repbook/lib/providers/workout_provider.dart): A ChangeNotifier that tracks weekday tabs selection and maps routine loads, loading status, and error states.
-- **Data Layer (Repository/Service)**
-  - [`lib/models/exercise.dart`](file:///home/leo/Projects/repbook/lib/models/exercise.dart): Plain data model representing an exercise with JSON serialization.
-  - [`lib/services/workout_service.dart`](file:///home/leo/Projects/repbook/lib/services/workout_service.dart): Abstract interface and simulated Mock service for loading the schedule payload.
+```text
+lib/
+├── models/
+│   └── exercise.dart           # Domain Model representing a single exercise (with JSON mappings)
+├── services/
+│   ├── github_service.dart     # Service encapsulating authenticated GitHub API requests
+│   ├── cache_service.dart      # Local file manager for routine JSON and downloaded GIFs
+│   └── workout_service.dart    # Abstract service bridging ViewModel and Cache/API sources
+├── providers/
+│   ├── settings_provider.dart  # State provider managing SharedPreferences PAT configurations
+│   └── workout_provider.dart   # State provider managing sync progress, tabs, and routines
+├── theme/
+│   └── app_theme.dart          # Monochromatic Material 3 design system tokens
+├── widgets/
+│   ├── exercise_card.dart      # Routine list card displaying large exercise GIF banners
+│   └── exercise_detail.dart    # Stateful full-screen detail viewer with swipe page transitions
+└── screens/
+    ├── home_screen.dart        # Dashboard screen containing weekday tabs and sync workflows
+    └── settings_screen.dart    # Form screen for credentials input and local cache clearing
+```
+
+### Key Components
+
+* **Monochromatic Dark UI (`AppTheme`)**: Uses deep pitch black (`#000000`) backgrounds, slate dark grey surfaces (`#121212`), white accents, and clean border styles.
+* **Offline-First Data Storage (`CacheService`)**: Routine schedules and GIF binaries are persisted directly in the device's local application documents directory, allowing 100% offline usage in gyms with poor network connections.
+* **Dynamic Technique Navigation (`ExerciseDetailDialog`)**: Renders details inside a stateful `PageView.builder` so users can swipe left or right to seamlessly browse the previous or next exercises in the day's routine.
+* **Pluggable Architecture**: Swapping mock services with production APIs is as simple as registering a new class conforming to `WorkoutService` in `lib/main.dart`.
 
 ---
 
-## 2. Pluggable Data Sources (Switching to the Real API)
+## 2. Setup & How to Use
 
-To transition from the current mock placeholder response to a real production endpoint:
+RepBook fetches exercise schedules from a private or public GitHub repository.
 
-### Step A: Implement a Real Service
-Create an HTTP client implementation conforming to `WorkoutService`:
+### Step 1: Create Your Schedule JSON
+In a GitHub repository (e.g. `workout-schedule`), create a JSON file (e.g. `schedule.json`) matching the following schema. Make sure to reference valid image or GIF URLs:
 
-```dart
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:repbook/models/exercise.dart';
-import 'package:repbook/services/workout_service.dart';
-
-class HttpWorkoutService implements WorkoutService {
-  final http.Client client;
-  final String apiEndpoint;
-
-  HttpWorkoutService({required this.client, required this.apiEndpoint});
-
-  @override
-  Future<Map<String, List<Exercise>>> fetchSchedule() async {
-    final response = await client.get(
-      Uri.parse(apiEndpoint),
-      headers: {'Accept': 'application/json'},
-    );
-
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final repBook = decoded['RepBook'] as Map<String, dynamic>?;
-
-      if (repBook == null) {
-        throw const FormatException('Missing "RepBook" root property in schedule JSON.');
-      }
-
-      final Map<String, List<Exercise>> schedule = {};
-      repBook.forEach((key, value) {
-        if (value is List) {
-          schedule[key] = value
-              .map((item) => Exercise.fromJson(item as Map<String, dynamic>))
-              .toList();
-        } else {
-          schedule[key] = [];
-        }
-      });
-      return schedule;
-    } else {
-      throw Exception('Failed to load schedule (Status Code: ${response.statusCode})');
-    }
+```json
+{
+  "RepBook": {
+    "Monday": [
+      {"name": "Barbell Bench Press", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
+      {"name": "Lat Pulldown", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
+    ],
+    "Tuesday": [
+      {"name": "Barbell Squat", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
+    ],
+    "Wednesday": [],
+    "Thursday": [
+      {"name": "Incline Dumbbell Press", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
+    ],
+    "Friday": [],
+    "Saturday": [],
+    "Sunday": []
   }
 }
 ```
 
-### Step B: Update Dependency Injection in `lib/main.dart`
-In [`lib/main.dart`](file:///home/leo/Projects/repbook/lib/main.dart), swap the registered `WorkoutService` provider instantiation:
+### Step 2: Generate a GitHub PAT Token
+1. Go to **Settings > Developer Settings > Personal Access Tokens (Fine-grained)**.
+2. Generate a token scoped only to the repository containing your schedule JSON.
+3. Grant **Read-only** permissions to **Contents**.
 
-```diff
--        Provider<WorkoutService>(
--          create: (_) => MockWorkoutService(),
--        ),
-+        Provider<WorkoutService>(
-+          create: (_) => HttpWorkoutService(
-+            client: http.Client(),
-+            apiEndpoint: 'https://api.yourdomain.com/v1/schedule',
-+          ),
-+        ),
-```
+### Step 3: Configure settings in RepBook
+1. Launch the RepBook app.
+2. On first run, it will detect that it is not yet configured. Tap **Go to Settings** (or tap the **Gear/Settings** icon in the top-left corner).
+3. Input your credentials:
+   * **GitHub PAT Token**: Your generated token (`ghp_...`)
+   * **Repository Owner**: Your GitHub username or organization name
+   * **Repository Name**: Your repository name
+   * **File Path**: Relative path to the JSON file (e.g., `schedule.json`)
+4. Tap **Save Settings**.
+
+### Step 4: Sync Routines
+1. Tap the **Sync** (refresh) icon in the top-right corner of the Home Screen.
+2. The app will connect to GitHub, download the schedule JSON, save it to disk, and download all referenced GIF files. You can monitor progress on-screen.
+3. Once completed, the screen will populate with your daily exercises. 
+
+### Step 5: Routine Navigation
+* **Weekday selection**: Tap any tab on the bottom navigation bar (Mon–Sun) to filter. The active tab defaults automatically to today's day of the week.
+* **Detail view**: Tap on any exercise card to view the animation full-screen.
+* **Swiping**: Swipe left or right on the detail screen to navigate to other exercises for that day without returning to the home dashboard.
 
 ---
 
-## 3. Testing
+## 3. Development, Testing, and Building
 
-The suite includes 5 comprehensive widget tests covering rendering with data, rendering empty rest days, active BottomNavigationBar navigation, full-screen technique inspections, and error states with active retry button interactions.
+### Running Widget & Unit Tests
+A full test suite is available under `test/workout_widget_test.dart` to verify navigation, empty day states, sync errors, and swiping behavior.
 
-To execute tests:
+Run the tests:
 ```bash
 flutter test
 ```
+
+### Running the App
+Run in debug mode on a connected device:
+```bash
+flutter run
+```
+
+### Building Release APK
+Compile a release build APK:
+```bash
+flutter build apk --release
+```
+The compiled APK will be generated at:
+`build/app/outputs/flutter-apk/app-release.apk`
