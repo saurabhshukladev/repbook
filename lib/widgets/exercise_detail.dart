@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:repbook/models/exercise.dart';
 
@@ -75,52 +76,92 @@ class _ExerciseDetailDialogState extends State<ExerciseDetailDialog> {
                         child: Semantics(
                           label: 'Enlarged demonstration GIF of ${exercise.name}',
                           image: true,
-                          child: Image.network(
-                            exercise.gifUrl,
-                            fit: BoxFit.contain,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              // Fallback UI for failed or mock image loads
-                              return Center(
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.fitness_center_rounded,
-                                        color: theme.colorScheme.secondary.withValues(alpha: 0.3),
-                                        size: 120,
-                                      ),
-                                      const SizedBox(height: 24),
-                                      Text(
-                                        'Demonstration Placeholder',
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontSize: 20,
+                          child: exercise.isLocallyCached
+                              ? Image.file(
+                                  File(exercise.localFilePath!),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Center(
+                                      child: SingleChildScrollView(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.fitness_center_rounded,
+                                              color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                                              size: 120,
+                                            ),
+                                            const SizedBox(height: 24),
+                                            Text(
+                                              'Demonstration Placeholder',
+                                              style: theme.textTheme.titleMedium?.copyWith(
+                                                fontSize: 20,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                              child: Text(
+                                                'Local File:\n${exercise.localFilePath}',
+                                                style: theme.textTheme.bodyMedium?.copyWith(
+                                                  fontFamily: 'monospace',
+                                                  fontSize: 12,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(height: 12),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                                        child: Text(
-                                          'Using mock URL:\n${exercise.gifUrl}',
-                                          style: theme.textTheme.bodyMedium?.copyWith(
-                                            fontFamily: 'monospace',
-                                            fontSize: 12,
-                                          ),
-                                          textAlign: TextAlign.center,
+                                    );
+                                  },
+                                )
+                              : Image.network(
+                                  exercise.gifUrl,
+                                  fit: BoxFit.contain,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) {
+                                    // Fallback UI for failed or mock image loads
+                                    return Center(
+                                      child: SingleChildScrollView(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.fitness_center_rounded,
+                                              color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                                              size: 120,
+                                            ),
+                                            const SizedBox(height: 24),
+                                            Text(
+                                              'Demonstration Placeholder',
+                                              style: theme.textTheme.titleMedium?.copyWith(
+                                                fontSize: 20,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                              child: Text(
+                                                'Using mock URL:\n${exercise.gifUrl}',
+                                                style: theme.textTheme.bodyMedium?.copyWith(
+                                                  fontFamily: 'monospace',
+                                                  fontSize: 12,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
-                          ),
                         ),
                       ),
                     ),

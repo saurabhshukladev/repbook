@@ -1,61 +1,117 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:repbook/models/exercise.dart';
+import 'package:repbook/services/cache_service.dart';
+import 'package:repbook/services/github_service.dart';
 
 /// An abstract interface defining the workout schedule data source.
 abstract class WorkoutService {
   Future<Map<String, List<Exercise>>> fetchSchedule();
 }
 
-/// A mock implementation of [WorkoutService] using the placeholder JSON.
-class MockWorkoutService implements WorkoutService {
-  final bool shouldFail;
-  final Duration delay;
+/// A concrete implementation of [WorkoutService] using the authenticated GitHub API
+/// and local caching services to support full offline capabilities.
+class GitHubWorkoutService implements WorkoutService {
+  final GitHubService gitHubService;
+  final CacheService cacheService;
 
-  MockWorkoutService({
-    this.shouldFail = false,
-    this.delay = const Duration(milliseconds: 1500),
+  GitHubWorkoutService({
+    required this.gitHubService,
+    required this.cacheService,
   });
 
+  /// Loads the workout schedule using local cached JSON and matches downloaded GIF files.
   @override
   Future<Map<String, List<Exercise>>> fetchSchedule() async {
-    await Future.delayed(delay);
+    return loadLocalMappedSchedule();
+  }
 
-    if (shouldFail) {
-      throw Exception('Failed to load workout schedule. Please try again later.');
-    }
+  /// Downloads the routine JSON from GitHub, saves it locally, and downloads all referenced GIF images.
+  /// Returns a fully local-mapped routine schedule.
+  Future<Map<String, List<Exercise>>> syncSchedule({
+    required String token,
+    required String owner,
+    required String repo,
+    required String path,
+    Function(String progress)? onProgress,
+  }) async {
+    onProgress?.call('Fetching schedule from GitHub...');
+    final rawJson = await gitHubService.fetchRawSchedule(
+      token: token,
+      owner: owner,
+      repo: repo,
+      path: path,
+    );
 
-    const placeholderJson = '''
-    {
-      "RepBook": {
-        "Monday": [
-          {"name": "Barbell Bench Press", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Lat Pulldown", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Overhead Press", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
-        ],
-        "Tuesday": [
-          {"name": "Barbell Squat", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Romanian Deadlift", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Standing Calf Raise", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
-        ],
-        "Wednesday": [],
-        "Thursday": [
-          {"name": "Incline Dumbbell Press", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Dumbbell Row", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Lateral Raise", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
-        ],
-        "Friday": [
-          {"name": "Leg Press", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Leg Curl", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"},
-          {"name": "Hanging Leg Raise", "gif-url": "https://i.pinimg.com/originals/f3/c6/c6/f3c6c61555639c1bb1a4b2c9c2c799c8.gif"}
-        ],
-        "Saturday": [],
-        "Sunday": []
+    // Save JSON cache locally
+    await cacheService.saveJsonCache(rawJson);
+
+    // Parse to extract exercise URLs
+    final schedule = _parseJson(rawJson);
+
+    final List<Exercise> allExercises = [];
+    schedule.forEach((_, exercises) {
+      allExercises.addAll(exercises);
+    });
+
+    // Cache unique exercise GIFs
+    final Set<String> processedExercises = {};
+    for (int i = 0; i < allExercises.length; i++) {
+      final exercise = allExercises[i];
+      if (processedExercises.contains(exercise.name)) continue;
+
+      onProgress?.call('Caching GIF (${i + 1}/${allExercises.length}): ${exercise.name}...');
+
+      try {
+        final alreadyCached = await cacheService.gifExists(exercise.name);
+        if (!alreadyCached) {
+          final bytes = await gitHubService.downloadBytes(exercise.gifUrl);
+          await cacheService.saveGif(exercise.name, bytes);
+        }
+        processedExercises.add(exercise.name);
+      } catch (e) {
+        // Log individual errors but continue syncing other exercises
+        // so the sync process is robust against single-image failures.
+        debugPrint('Error caching GIF for ${exercise.name}: $e');
       }
     }
-    ''';
 
+    return loadLocalMappedSchedule();
+  }
+
+  /// Reads local cached JSON and replaces remote GIF URLs with local absolute file paths where available.
+  Future<Map<String, List<Exercise>>> loadLocalMappedSchedule() async {
+    final cachedJson = await cacheService.readJsonCache();
+    if (cachedJson == null) {
+      return {}; // Empty schedule, user needs to run first sync
+    }
+
+    final schedule = _parseJson(cachedJson);
+    final Map<String, List<Exercise>> localSchedule = {};
+
+    for (final entry in schedule.entries) {
+      final day = entry.key;
+      final exercises = entry.value;
+      final List<Exercise> mappedExercises = [];
+
+      for (final exercise in exercises) {
+        final cached = await cacheService.gifExists(exercise.name);
+        if (cached) {
+          final localPath = await cacheService.getGifLocalPath(exercise.name);
+          mappedExercises.add(exercise.copyWith(localFilePath: localPath));
+        } else {
+          mappedExercises.add(exercise);
+        }
+      }
+      localSchedule[day] = mappedExercises;
+    }
+
+    return localSchedule;
+  }
+
+  Map<String, List<Exercise>> _parseJson(String rawJson) {
     try {
-      final Map<String, dynamic> decoded = jsonDecode(placeholderJson) as Map<String, dynamic>;
+      final Map<String, dynamic> decoded = jsonDecode(rawJson) as Map<String, dynamic>;
       final repBook = decoded['RepBook'] as Map<String, dynamic>?;
 
       if (repBook == null) {
@@ -75,7 +131,7 @@ class MockWorkoutService implements WorkoutService {
 
       return schedule;
     } catch (e) {
-      throw FormatException('Failed to parse workout schedule: $e');
+      throw FormatException('Failed to parse workout schedule JSON: $e');
     }
   }
 }

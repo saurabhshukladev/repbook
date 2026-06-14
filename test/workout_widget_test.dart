@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:repbook/models/exercise.dart';
+import 'package:repbook/providers/settings_provider.dart';
 import 'package:repbook/providers/workout_provider.dart';
 import 'package:repbook/screens/home_screen.dart';
 import 'package:repbook/services/workout_service.dart';
@@ -48,6 +50,7 @@ void main() {
   late Map<String, List<Exercise>> testSchedule;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     testSchedule = {
       'Monday': [
         const Exercise(name: 'Barbell Bench Press', gifUrl: 'https://example.com/gifs/bench-press.gif'),
@@ -67,6 +70,9 @@ void main() {
   Widget buildTestWidget({required WorkoutService service}) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<SettingsProvider>(
+          create: (_) => SettingsProvider(),
+        ),
         ChangeNotifierProvider<WorkoutProvider>(
           create: (context) => WorkoutProvider(
             workoutService: service,

@@ -18,6 +18,9 @@ class WorkoutProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  String? _syncProgressMessage;
+  String? get syncProgressMessage => _syncProgressMessage;
+
   int _selectedDayIndex = 0;
   int get selectedDayIndex => _selectedDayIndex;
 
@@ -51,7 +54,7 @@ class WorkoutProvider extends ChangeNotifier {
     }
   }
 
-  /// Triggers a fetch call to the workout service and transitions state accordingly.
+  /// Loads the schedule locally from disk.
   Future<void> loadSchedule() async {
     _status = WorkoutStatus.loading;
     _errorMessage = null;
@@ -65,5 +68,45 @@ class WorkoutProvider extends ChangeNotifier {
       _status = WorkoutStatus.error;
     }
     notifyListeners();
+  }
+
+  /// Triggers an authenticated remote sync with GitHub, downloading the raw JSON
+  /// and referenced GIF files to local disk storage.
+  Future<void> syncSchedule({
+    required String token,
+    required String owner,
+    required String repo,
+    required String path,
+  }) async {
+    if (_workoutService is! GitHubWorkoutService) {
+      // Fallback for MockWorkoutService
+      await loadSchedule();
+      return;
+    }
+
+    _status = WorkoutStatus.loading;
+    _syncProgressMessage = 'Starting sync...';
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _schedule = await _workoutService.syncSchedule(
+        token: token,
+        owner: owner,
+        repo: repo,
+        path: path,
+        onProgress: (progress) {
+          _syncProgressMessage = progress;
+          notifyListeners();
+        },
+      );
+      _status = WorkoutStatus.success;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _status = WorkoutStatus.error;
+    } finally {
+      _syncProgressMessage = null;
+      notifyListeners();
+    }
   }
 }

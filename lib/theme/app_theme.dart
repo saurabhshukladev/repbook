@@ -60,6 +60,30 @@ class AppTheme {
           side: const BorderSide(color: borderGrey, width: 1),
         ),
       ),
+      inputDecorationTheme: const InputDecorationTheme(
+        filled: true,
+        fillColor: darkGrey,
+        labelStyle: TextStyle(color: mediumGrey, fontSize: 14),
+        hintStyle: TextStyle(color: mediumGrey, fontSize: 14),
+        helperStyle: TextStyle(color: mediumGrey, fontSize: 12),
+        floatingLabelStyle: TextStyle(color: pureWhite),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: borderGrey),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: pureWhite),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFFEF4444)),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFFEF4444), width: 2),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+      ),
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
           fontSize: 24,

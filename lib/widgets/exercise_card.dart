@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:repbook/models/exercise.dart';
@@ -46,27 +47,43 @@ class ExerciseCard extends StatelessWidget {
                   Semantics(
                     label: 'GIF animation demonstrating ${exercise.name}',
                     image: true,
-                    child: Image.network(
-                      exercise.gifUrl,
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.contain, // Ensures the entire exercise movement is visible
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Center(
-                          child: Icon(
-                            Icons.fitness_center_rounded,
-                            color: theme.colorScheme.secondary.withValues(alpha: 0.3),
-                            size: 64,
+                    child: exercise.isLocallyCached
+                        ? Image.file(
+                            File(exercise.localFilePath!),
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Icon(
+                                  Icons.fitness_center_rounded,
+                                  color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                                  size: 64,
+                                ),
+                              );
+                            },
+                          )
+                        : Image.network(
+                            exercise.gifUrl,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.contain, // Ensures the entire exercise movement is visible
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Icon(
+                                  Icons.fitness_center_rounded,
+                                  color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                                  size: 64,
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
                   // Subtle gradient overlay for visual polish
                   Positioned.fill(

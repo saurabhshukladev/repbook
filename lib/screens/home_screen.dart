@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:repbook/providers/settings_provider.dart';
 import 'package:repbook/providers/workout_provider.dart';
+import 'package:repbook/screens/settings_screen.dart';
 import 'package:repbook/widgets/exercise_card.dart';
 
 /// The primary home screen containing the weekday tabs and active routine list.
@@ -15,10 +17,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Fetch schedule on startup
-    Future.microtask(() {
+    // Load local settings and cached routine on startup
+    Future.microtask(() async {
       if (mounted) {
-        context.read<WorkoutProvider>().loadSchedule();
+        await context.read<SettingsProvider>().loadSettings();
+        if (mounted) {
+          context.read<WorkoutProvider>().loadSchedule();
+        }
       }
     });
   }
@@ -29,6 +34,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.settings_rounded),
+          tooltip: 'GitHub Settings',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+          ),
+        ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -43,9 +55,33 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           if (provider.status == WorkoutStatus.success || provider.status == WorkoutStatus.error)
             IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Refresh schedule',
-              onPressed: () => provider.loadSchedule(),
+              icon: const Icon(Icons.sync_rounded),
+              tooltip: 'Sync schedule',
+              onPressed: () {
+                final settings = context.read<SettingsProvider>();
+                if (settings.isConfigured) {
+                  provider.syncSchedule(
+                    token: settings.githubPat,
+                    owner: settings.githubOwner,
+                    repo: settings.githubRepo,
+                    path: settings.githubPath,
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please configure GitHub settings first.',
+                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+                      ),
+                      backgroundColor: Colors.white,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  );
+                }
+              },
             ),
         ],
       ),
@@ -96,10 +132,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody(BuildContext context, WorkoutProvider provider) {
     final theme = Theme.of(context);
+    final settings = context.watch<SettingsProvider>();
 
     switch (provider.status) {
       case WorkoutStatus.initial:
       case WorkoutStatus.loading:
+        if (provider.syncProgressMessage != null) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(color: Colors.white),
+                  const SizedBox(height: 24),
+                  Text(
+                    provider.syncProgressMessage!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         return const _LoadingSkeleton();
       case WorkoutStatus.error:
         return Center(
@@ -128,7 +188,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
-                  onPressed: () => provider.loadSchedule(),
+                  onPressed: () {
+                    if (settings.isConfigured) {
+                      provider.syncSchedule(
+                        token: settings.githubPat,
+                        owner: settings.githubOwner,
+                        repo: settings.githubRepo,
+                        path: settings.githubPath,
+                      );
+                    } else {
+                      provider.loadSchedule();
+                    }
+                  },
                   icon: const Icon(Icons.replay_rounded),
                   label: const Text('Try Again'),
                   style: ElevatedButton.styleFrom(
@@ -145,6 +216,62 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       case WorkoutStatus.success:
+        // If the schedule is completely empty (no cached data)
+        if (provider.schedule.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/images/logo.png',
+                    height: 100,
+                    color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                    colorBlendMode: BlendMode.srcIn,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    settings.isConfigured ? 'Ready to Sync' : 'Configuration Required',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      settings.isConfigured
+                          ? 'Tap the Sync button on the top-right to download your routine and exercise GIFs from GitHub.'
+                          : 'Tap the Settings icon on the top-left to configure your GitHub Personal Access Token and repository details.',
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (!settings.isConfigured)
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                      ),
+                      icon: const Icon(Icons.settings_rounded),
+                      label: const Text('Go to Settings'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final exercises = provider.selectedDayExercises;
         if (exercises.isEmpty) {
           return Center(
